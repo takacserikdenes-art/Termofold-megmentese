@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mentsd meg a termőföldet! — Döntési szimuláció</title>
+  <style>
+    :root{font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:#f4fbf8;color:#042b2a}
+    body{display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px}
+    .card{background:white;border-radius:12px;box-shadow:0 8px 30px rgba(4,43,42,0.08);width:100%;max-width:980px;padding:22px}
+    h1{font-size:22px;margin:6px 0 8px;text-align:center;color:#0b5a55}
+    p.lead{color:#0a3b39;text-align:center;margin:8px 0 18px}
+    .stats{display:flex;gap:12px;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .stat{flex:1;padding:12px;border-radius:10px;background:#f0fffb;border:1px solid #e6f7f4;text-align:center}
+    .stat h3{margin:0;font-size:14px;color:#06524d}
+    .stat p{margin:6px 0 0;font-weight:700;font-size:16px;color:#032c2a}
+    .actions{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
+    .action{padding:12px;border-radius:10px;border:1px solid #d7efe9;background:#e9fffb;cursor:pointer;text-align:left;position:relative}
+    .action.disabled{opacity:0.5;pointer-events:none}
+    .action strong{display:block;margin-bottom:6px;font-size:15px;color:#034b46}
+    .action p{margin:0;font-size:13px;color:#0b504b}
+    .cost{position:absolute;right:10px;top:10px;font-weight:700}
+    .log{margin-top:14px;padding:12px;border-radius:8px;background:#fff;border:1px solid #e6f7f4;min-height:100px;white-space:pre-line;overflow:auto}
+    .controls{display:flex;gap:8px;justify-content:center;margin-top:14px}
+    button{padding:10px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
+    .btn-primary{background:#0b8f7e;color:white}
+    .btn-secondary{background:#e6f7f4;color:#0b8f7e}
+    .footer{font-size:13px;color:#3e6b66;margin-top:12px;text-align:center}
+    .final{display:none;margin-top:14px;padding:14px;border-radius:10px;background:#eaffef;border:1px solid #c9f2d2;text-align:center}
+    .turn{font-size:13px;color:#2b5b57;margin-bottom:8px;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="card" role="main">
+    <h1>Mentsd meg a termőföldet!</h1>
+    <p class="lead">Játssz környezetvédelmi minisztert: hozd meg a döntéseket, és figyeld, hogyan változik a talaj állapota és a lakosság elégedettsége.</p>
+
+    <div class="stats" aria-live="polite">
+      <div class="stat">
+        <h3>Talaj állapota</h3>
+        <p id="soilVal">70%</p>
+      </div>
+      <div class="stat">
+        <h3>Lakosság elégedettsége</h3>
+        <p id="popVal">60%</p>
+      </div>
+      <div class="stat">
+        <h3>Túlélt körök</h3>
+        <p id="turnVal">1 / 10</p>
+      </div>
+      <div class="stat">
+        <h3>Költségvetés</h3>
+        <p id="budgetVal">$0</p>
+      </div>
+    </div>
+
+    <div class="turn" id="scenarioText">Kezdő szituáció: a talaj állapota romlik a szomszédos ipari tevékenység miatt. A játék elején egyszeri <strong>$10,000,000</strong> támogatást kapsz.</div>
+
+    <div class="actions" id="actionsContainer">
+      <div class="action" data-action="close_factory" onclick="doAction('close_factory')">
+        <span class="cost">- $5,000,000</span>
+        <strong>Gyár részleges bezárása</strong>
+        <p>Csökkenti a szennyezést, de munkanélküliséget okozhat rövid távon.</p>
+      </div>
+      <div class="action" data-action="tree_plant" onclick="doAction('tree_plant')">
+        <span class="cost">- $3,000,000</span>
+        <strong>Faültetési program</strong>
+        <p>Javítja a talajt és a közérzetet, hosszabb távú hatás.</p>
+      </div>
+      <div class="action" data-action="info_campaign" onclick="doAction('info_campaign')">
+        <span class="cost">- $1,500,000</span>
+        <strong>Oktató kampány</strong>
+        <p>Fokozza a lakosság támogatását, lassú hatás a környezeten.</p>
+      </div>
+
+      <div class="action" data-action="subsidy_green" onclick="doAction('subsidy_green')">
+        <span class="cost">- $8,000,000</span>
+        <strong>Zöld támogatások</strong>
+        <p>Támogatja a fenntartható gazdálkodást, költséges.</p>
+      </div>
+      <div class="action" data-action="strict_regulation" onclick="doAction('strict_regulation')">
+        <span class="cost">- $4,000,000</span>
+        <strong>Szigorúbb szabályozás</strong>
+        <p>Hátráltatja az ipart, de gyors javulást hozhat.</p>
+      </div>
+      <div class="action" data-action="do_nothing" onclick="doAction('do_nothing')">
+        <span class="cost">$0</span>
+        <strong>Nincs beavatkozás</strong>
+        <p>Nem változik rögtön, de kockázatos hosszú távon.</p>
+      </div>
+
+      <!-- Actions that give money but are harmful -->
+      <div class="action" data-action="industrial_expansion" onclick="doAction('industrial_expansion')">
+        <span class="cost">+ $12,000,000</span>
+        <strong>Ipari bővítés</strong>
+        <p>Az ipar bővítése rögtön pénzt hoz, de rontja a talajt és a népszerűséget.</p>
+      </div>
+      <div class="action" data-action="sell_land_rights" onclick="doAction('sell_land_rights')">
+        <span class="cost">+ $7,000,000</span>
+        <strong>Földjogok eladása</strong>
+        <p>Pénzt kapsz azonnal, de hosszú távon romlik a talaj.</p>
+      </div>
+      <div class="action" data-action="temporary_mining" onclick="doAction('temporary_mining')">
+        <span class="cost">+ $10,000,000</span>
+        <strong>Ideiglenes bányászat</strong>
+        <p>Gyors bevétel, nagy talajkárosodás.</p>
+      </div>
+    </div>
+
+    <div class="log" id="log">Játék indult. Hajrá, miniszter!</div>
+
+    <div class="controls">
+      <button class="btn-primary" onclick="endGame()">Vége (összegzés)</button>
+      <button class="btn-secondary" onclick="restart()">Újrakezd</button>
+    </div>
+
+    <div class="final" id="finalBox"></div>
+
+    <div class="footer">
+      Minden döntés befolyásolja a talajt és a lakosságot — a cél: minél egészségesebb talaj magas támogatottsággal a 10 kör végén.
+    </div>
+  </div>
+
+  <script>
+    // Game state
+    let soil = 70; // 0-100
+    let pop = 60; // 0-100
+    let turn = 1;
+    const maxTurns = 10;
+    let budget = 10000000; // Start with one-time 10 million
+    const logEl = document.getElementById('log');
+    const soilEl = document.getElementById('soilVal');
+    const popEl = document.getElementById('popVal');
+    const turnEl = document.getElementById('turnVal');
+    const budgetEl = document.getElementById('budgetVal');
+    const scenarioEl = document.getElementById('scenarioText');
+    const finalBox = document.getElementById('finalBox');
+
+    function clamp(v){ return Math.max(0, Math.min(100, Math.round(v))); }
+
+    function formatMoney(n){ return '$' + n.toLocaleString(); }
+
+    function updateUI(){
+      soilEl.textContent = clamp(soil) + '%';
+      popEl.textContent = clamp(pop) + '%';
+      turnEl.textContent = turn + ' / ' + maxTurns;
+      budgetEl.textContent = formatMoney(budget);
+      // enable/disable actions depending on budget (if cost > budget and cost > 0 -> disable)
+      document.querySelectorAll('.action').forEach(a=>{
+        const key = a.getAttribute('data-action');
+        const e = effects[key];
+        if(e.cost > 0 && e.cost > budget){
+          a.classList.add('disabled');
+        } else {
+          a.classList.remove('disabled');
+        }
+      });
+    }
+
+    function log(msg){
+      const time = new Date().toLocaleTimeString();
+      logEl.textContent = time + ' — ' + msg + '\n' + logEl.textContent;
+    }
+
+    // Actions effects (base changes) - cost in dollars (positive = cost, negative = you receive)
+    const effects = {
+      close_factory: {soil:+12, pop:-10, cost:5000000, text:'Részleges gyárbezárás: kevesebb szennyezés.'},
+      tree_plant: {soil:+10, pop:+5, cost:3000000, text:'Faültetés: hosszú távú talajjavulás.'},
+      info_campaign: {soil:+2, pop:+12, cost:1500000, text:'Oktató kampány: növeli a támogatást.'},
+      subsidy_green: {soil:+8, pop:+6, cost:8000000, text:'Zöld támogatások: segít a gazdáknak átállni.'},
+      strict_regulation: {soil:+15, pop:-15, cost:4000000, text:'Szigorú szabályok: gyors javulás, politikai ellenérzés.'},
+      do_nothing: {soil:-8, pop:-5, cost:0, text:'Semmittevés: a talaj romlik.'},
+
+      // harmful but profitable (cost negative = you receive money)
+      industrial_expansion: {soil:-18, pop:-12, cost:-12000000, text:'Ipari bővítés: azonnali bevétel, nagy károsodás.'},
+      sell_land_rights: {soil:-12, pop:-8, cost:-7000000, text:'Földjogok eladása: pénz a büdzsében, romló talaj.'},
+      temporary_mining: {soil:-22, pop:-10, cost:-10000000, text:'Ideiglenes bányászat: magas bevétel, súlyos talajkárosodás.'}
+    };
+
+    function randomModifier(){
+      return (Math.random() * 6 - 3); // between -3 and +3 for smaller variability
+    }
+
+    function doAction(actionKey){
+      if(turn > maxTurns){ return; }
+      const e = effects[actionKey];
+      if(!e) return;
+      // check budget for positive-cost actions
+      if(e.cost > 0 && e.cost > budget){
+        alert('Nincs elegendő pénzed erre az intézkedésre.');
+        return;
+      }
+
+      const mod = randomModifier();
+      const soilChange = e.soil + mod;
+      const popChange = e.pop + (mod * 0.6);
+
+      soil += soilChange;
+      pop += popChange;
+
+      // apply cost (cost negative -> you receive money)
+      budget -= e.cost;
+
+      log(e.text + ' (' + (soilChange>=0?'+':'') + soilChange.toFixed(1) + '% talaj, ' + (popChange>=0?'+':'') + popChange.toFixed(1) + '% lakosság) Cost: ' + (e.cost>=0?'- ':'+ ') + formatMoney(Math.abs(e.cost)) );
+      scenarioEl.textContent = 'Döntésed: ' + e.text;
+
+      updateUI();
+      // end or proceed to next turn
+      if(turn === maxTurns){
+        endGame();
+      } else {
+        turn++;
+        updateUI();
+      }
+    }
+
+    function endGame(){
+      // compute summary
+      const soilScore = clamp(soil);
+      const popScore = clamp(pop);
+      const overall = Math.round((soilScore * 0.7) + (popScore * 0.3));
+      finalBox.style.display = 'block';
+      finalBox.innerHTML = '<h3>Összegzés</h3>' +
+        '<p>Talaj állapota: <strong>' + soilScore + '%</strong></p>' +
+        '<p>Lakosság elégedettsége: <strong>' + popScore + '%</strong></p>' +
+        '<p>Végső eredmény (70% talaj + 30% támogatottság): <strong>' + overall + '%</strong></p>' +
+        '<p>Maradék költségvetés: <strong>' + formatMoney(budget) + '</strong></p>' +
+        '<p style="margin-top:8px;font-weight:700;">' + endMessage(overall) + '</p>' +
+        '<p style="font-size:12px;color:#476f68;margin-top:8px;">Kattints <strong>Újrakezd</strong>, ha új stratégiát szeretnél kipróbálni.</p>';
+      log('Játék vége — összegzés megjelenítve.');
+      // hide actions
+      document.querySelectorAll('.action').forEach(a=>a.style.pointerEvents='none');
+    }
+
+    function endMessage(score){
+      if(score >= 85) return 'Kiváló! A talaj egészsége és a közvélemény is remekül alakult.';
+      if(score >= 65) return 'Jó munka! Érezhető előrelépés történt.';
+      if(score >= 40) return 'Közepes eredmény — további intézkedések szükségesek.';
+      return 'Sajnos nem sikerült megmenteni a talajt, próbáld újra más stratégiával.';
+    }
+
+    function restart(){
+      soil = 70;
+      pop = 60;
+      turn = 1;
+      budget = 10000000; // reset to starting 10M
+      finalBox.style.display = 'none';
+      document.querySelectorAll('.action').forEach(a=>a.style.pointerEvents='auto');
+      logEl.textContent = 'Újrakezdés: a kísérlet újraindult.';
+      scenarioEl.textContent = 'Kezdő szituáció: a talaj állapota romlik a szomszédos ipari tevékenység miatt. A játék elején egyszeri $10,000,000 támogatást kapsz.';
+      updateUI();
+    }
+
+    // initial UI
+    log('Kezdeti támogatás: ' + formatMoney(budget));
+    updateUI();
+
+  </script>
+</body>
+</html>
